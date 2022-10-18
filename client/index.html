@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <!-- font-awesome -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+    <script>
+
+        let characters; // characters array will be filled with default existing characters on start up
+        let names; // an array of all the characters' names only (used as key)
+        let newestFirst = true;
+        let removeIcons = document.querySelectorAll('.fa-remove');
+        let toBeDeleted;
+        let currentRole = "";
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // used to display all characters in character field
+        const displayCharacters = (characters, names) => {
+            const characterField = document.querySelector("#character-field");
+            characterField.innerHTML = "";
+
+            const dropDownContent = document.querySelector('.dropdown-content');
+
+            const initiateCharacters = (i) => {
+                let n = names[i]; // n = the name of the current character
+
+                // info card that stores all info of this current character
+                let infoCard = document.createElement("div");
+                infoCard.id = n + "-info-card";
+                infoCard.className = "character-card";
+
+                let name = document.createElement("h3");
+                name.innerHTML = "Name: " + n;
+
+                let job = document.createElement("h3");
+                job.innerHTML = "Job: " + characters[n].job;
+
+                let personality = document.createElement("h3");
+                personality.innerHTML = "Personality: " + characters[n].personality;
+
+                infoCard.appendChild(name);
+                infoCard.appendChild(job);
+                infoCard.appendChild(personality);
+                infoCard.innerHTML += `<i class="fa fa-remove"></i>`;
+
+                characterField.appendChild(infoCard);
+
+                // add event listeners to every character card that just got created
+                let card = document.querySelector('#' + `${infoCard.id}`);
+                card.addEventListener('click', () => {
+                    console.log(card.id + " is clicked.");
+                    let cardName = card.firstElementChild.innerHTML.substring(6); // everything beyond "Name: "
+                    let cardJob = card.firstElementChild.nextElementSibling.innerHTML.substring(5); // everything beyond "Job: "
+                    let cardPersonality = card.firstElementChild.nextElementSibling.nextElementSibling.innerHTML.substring(13); // everything beyond "Personality: "
+
+                    console.log("cardName: " + cardName);
+                    console.log("cardJob: " + cardJob);
+                    console.log("cardPersonality: " + cardPersonality);
+                })
+
+                // add event listeners to every remove icon of the character card that just got created (used to delete this character)
+                let removeIcon = card.lastElementChild;
+                removeIcon.addEventListener('click', () => {
+                    console.log(card.id + "'s remove icon is clicked.");
+                    toBeDeleted = card.id;
+                    sendFetchRequest('/deleteCharacter', 'POST');
+                    event.stopPropagation(); // stop event bubbling from going upwards and triggering the listeners on the card itself
+                })
+            };
+
+            // create character cards and fill them in with the characters' data
+            if (newestFirst) {
+                dropDownContent.firstElementChild.innerHTML = `newest first <i class="fa fa-check"></i>`;
+                dropDownContent.lastElementChild.innerHTML = "oldest first";
+                for (let i = names.length - 1; i >= 0; i--) {
+                    initiateCharacters(i);
+                }
+            } else {
+                //oldest first
+                dropDownContent.firstElementChild.innerHTML = `newest first`;
+                dropDownContent.lastElementChild.innerHTML = `oldest first <i class="fa fa-check"></i>`;
+                for (let i = 0; i < names.length; i++) {
+                    initiateCharacters(i);
+                }
+            }
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // handle response coming back from the server
+        const handleResponse = async (res) => {
+            console.log("in handleResponse");
+            // 200 - success (send back characters)
+            // 201 - created (send back characters)
+            // 204 - updated
+            // 400 - bad request (missing params)
+            // 404 - not found
+
+            const displayField = document.querySelector('#character-field');
+
+            console.log("status: " + res.status);
+
+            // 204 - nothing to parse
+            if (res.status === 204) {
+                // update the character field
+                sendFetchRequest('/getCharacters', 'GET');
+            }
+            // other status - handle the object sent back
+            else {
+                let obj = await res.json(); // parse the response into a json object
+                console.log("obj sent back: ");
+                console.log(obj);
+                characters = obj;
+
+                if (res.status === 400 || res.status === 404) {
+                    // don't update the character field for bad request and not found
+                    console.log()
+                    let errorMessage = document.createElement('p');
+                    errorMessage.textContent = obj.message;
+                    document.querySelector('#new-character-field').append(errorMessage);
+                }
+                else {
+                    // update the character field when user add/update the character
+                    names = Object.keys(obj);
+                    console.log("number of characters: " + names.length);
+                    displayCharacters(obj, names);
+                }
+            }
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // clear error message if there is one
+        const clearErrorMessage = () => {
+            let p = document.querySelector('p');// this is the only p in the document
+            if (p) {
+                p.parentNode.removeChild(p);
+            }
+
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // send all requests here
+        const sendFetchRequest = async (url, method) => {
+            console.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+            console.log("method: " + method);
+
+            // clear error message on the page if there is one
+            clearErrorMessage();
+
+            // grab the fields to reference the values in them
+            const nameField = document.querySelector('#nameField');
+            const jobField = document.querySelector('#jobField');
+            const personalityField = document.querySelector('#personalityField');
+
+            // build a data string in the FORM-URLENCODED format.
+            const formData = `name=${nameField.value.trim()}&job=${jobField.value}&personality=${personalityField.value}`;
+
+            // GET request - get characters
+            if (method === "GET") {
+                let response = await fetch(url, {
+                    method,
+                    // send the accept header
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+                handleResponse(response);
+            }
+
+            // POST request - add, update, delete characters
+            else { // method=== 'POST'
+                if (url === '/deleteCharacter') {
+                    console.log("current user num before deleting: " + names.length); // current character num before sending the request
+
+                    // grab the card to be deleted
+                    let card = document.querySelector('#' + `${toBeDeleted}`);
+
+                    let cardName = card.firstElementChild.innerHTML.substring(6); // everything beyond "Name: "
+
+                    const deleteData = `name=${cardName}`;
+
+                    let response = await fetch(url, {
+                        method,
+                        // send the accept header
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Accept': 'application/json',
+                        },
+                        body: deleteData
+                    });
+                    handleResponse(response);
+                }
+                else if (url === '/addCharacter') {
+                    console.log("adding character");
+                    let response = await fetch(url, {
+                        method,
+                        // send the accept header
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Accept': 'application/json',
+                        },
+                        body: formData
+                    });
+                    handleResponse(response);
+                }
+
+
+            };
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // send button used for sendign messages
+        function sendButtonClicked() {
+
+            // if the user actually typed something
+            if (textbox.value != "") {
+
+                // create 4 elements needed
+                let messageBox = document.createElement("div");
+                let message = document.createElement("div");
+                let name = document.createElement("div");
+                let avatar = document.createElement("div");
+
+                // set their class names
+                messageBox.className = "messageBox";
+                message.className = "message";
+                name.className = "name";
+                avatar.className = "avatar";
+                avatar.innerHTML = '<i class="fas fa-user"></i>';
+
+                // set the text of the new message to what the user has in the inpur field
+                message.innerHTML = textbox.value;
+
+                // set the current role name (just above the input field) to the current role
+                name.innerHTML = currentRole;
+
+                // append the 3 components to the new message box
+                messageBox.appendChild(name);
+                messageBox.appendChild(avatar);
+                messageBox.appendChild(message);
+
+                // append the new message box to the list of all messages
+                messages.appendChild(messageBox);
+
+                // reset textbox value
+                textbox.value = "";
+            }
+            // keep the cursor in the textbox
+            textbox.focus();
+
+            // scroll to the bottom
+            document.querySelector("#message-container").scrollTop = 0;
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        const init = () => {
+
+            // display default existing character at the start up
+            sendFetchRequest('/getCharacters', 'GET');
+
+            // reference the fields and buttons
+            const addButton = document.querySelector('#addButton');
+
+            const nameForm = document.querySelector('#nameForm');
+
+            const nameField = document.querySelector('#nameField');
+            const jobField = document.querySelector('#jobField');
+            const personalityField = document.querySelector('#personalityField');
+
+            const resetButton = document.querySelector('#resetButton');
+
+            const dropDownContent = document.querySelector('.dropdown-content');
+
+            // const removeIcons = document.querySelectorAll('.fa-remove');
+
+            // Allow user to add character by pressing Enter
+            // const enterKeyPressed = (e) => {
+            //     if (e.key == "Enter") {
+            //         sendFetchRequest('/addCharacter', 'POST');
+            //     }
+            // }
+
+            // cancels the forms default action and calls sendFetchRequest function above.
+            const getCharacters = (e) => {
+                e.preventDefault();
+                sendFetchRequest('/getCharacters', 'GET');
+                return false;
+            }
+
+            const addCharacter = (e) => {
+                e.preventDefault();
+                sendFetchRequest('/addCharacter', 'POST');
+                // make the cursor focus on name field 
+                nameField.focus();
+                return false;
+            }
+
+            const deleteCharacter = () => {
+                console.log("in delete")
+            }
+
+            // make the cursor focus on name field 
+            nameField.focus();
+
+            // user can press enter to Add when they get to the last field
+            // personalityField.addEventListener("keydown", enterKeyPressed);
+
+            // clear all fields and error messages if there is one
+            resetButton.addEventListener('click', () => {
+                nameField.value = '';
+                jobField.value = '';
+                personalityField.value = '';
+                clearErrorMessage();
+            });
+
+            // call addCharacter when the submit event fires on the form.
+            nameForm.addEventListener('submit', addCharacter);
+
+            // toggle sort
+            dropDownContent.firstElementChild.addEventListener('click', () => {
+                newestFirst = true;
+                displayCharacters(characters, names);
+            })
+
+            dropDownContent.lastElementChild.addEventListener('click', () => {
+                newestFirst = false;
+                displayCharacters(characters, names);
+            })
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        window.onload = init;
+
+    </script>
+</head>
+
+<body>
+    <h1>My Character World</h1>
+
+    <!-- field for adding new characters -->
+    <h2>Add New Characters</h2>
+    <div id="new-character-field">
+        <form id="nameForm" action="/addCharacter" method="post">
+
+            <!-- name field -->
+            <label for="name">Name: </label>
+            <input id="nameField" type="text" name="name" />
+
+            <!-- job field -->
+            <label for="job">Job: </label>
+            <input id="jobField" type="text" name="job" />
+
+            <!-- personality field -->
+            <label for="personality">Personality: </label>
+            <input id="personalityField" type="text" name="personality" />
+
+            <!-- submit button -->
+            <input type="submit" value="Add" id="addButton" />
+            <input type="button" value="Reset" id="resetButton" />
+        </form>
+    </div>
+
+    <!-- field for displaying all characters -->
+    <h2>My Characters</h2>
+    <div id="character-field">
+        <!-- <div class="character-card">
+            <h3>Name: System </h3>
+            <h3>Job: default system</h3>
+            <h3>Personality: optimistic</h3>
+            <i class="fa fa-remove"></i>
+        </div> -->
+    </div>
+    <div class="dropdown">
+        <button class="dropbtn">Sort <i class="fa fa-caret-down"></i></button>
+        <div class="dropdown-content">
+            <a href="#">newest first</a>
+            <a href="#">oldest first</a>
+        </div>
+    </div>
+
+
+</body>
+
+</html>

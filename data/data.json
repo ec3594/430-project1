@@ -1,0 +1,29 @@
+{
+    "characters": {
+        "System": {
+            "name": "System",
+            "job": "system",
+            "personality": "optimistic"
+        },
+        "Eva": {
+            "name": "Eva",
+            "job": "animator",
+            "personality": "perfectionist"
+        },
+        "Alice": {
+            "name": "Alice",
+            "job": "violinist",
+            "personality": "cheerful"
+        },
+        "Ben": {
+            "name": "Ben",
+            "job": "programmer",
+            "personality": "smart"
+        },
+        "Tom": {
+            "name": "Tom",
+            "job": "designer",
+            "personality": "goofy"
+        }
+    }
+}
